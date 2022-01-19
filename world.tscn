@@ -1,0 +1,67 @@
+[gd_scene load_steps=9 format=3 uid="uid://2bgr3o35dc77"]
+
+[ext_resource type="Script" path="res://scripts/terrain.gd" id="2_kny2v"]
+[ext_resource type="Script" path="res://scripts/player.gd" id="2_wmypn"]
+
+[sub_resource type="PhysicalSkyMaterial" id="PhysicalSkyMaterial_oh8gr"]
+
+[sub_resource type="Sky" id="Sky_t7xjn"]
+sky_material = SubResource( "PhysicalSkyMaterial_oh8gr" )
+
+[sub_resource type="Environment" id="Environment_jbpuh"]
+background_mode = 2
+sky = SubResource( "Sky_t7xjn" )
+tonemap_mode = 2
+auto_exposure_enabled = true
+ssao_enabled = true
+ssil_enabled = true
+sdfgi_use_occlusion = true
+sdfgi_read_sky_light = true
+glow_enabled = true
+fog_enabled = true
+fog_light_color = Color(0.501961, 0.6, 0.701961, 1)
+volumetric_fog_enabled = true
+volumetric_fog_density = 0.025
+
+[sub_resource type="CameraEffects" id="CameraEffects_tptsu"]
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_oay6h"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_pjlnj"]
+
+[node name="Node3D" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource( "Environment_jbpuh" )
+camera_effects = SubResource( "CameraEffects_tptsu" )
+
+[node name="DirectionalLight" type="DirectionalLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.996195, 0.0871558, 0, -0.0871558, 0.996195, 0, 5, 0)
+light_color = Color(1, 0.87451, 0.74902, 1)
+shadow_enabled = true
+directional_shadow_mode = 0
+
+[node name="Player" type="CharacterBody3D" parent="."]
+floor_max_angle = 1.0472
+floor_snap_length = 0.0
+script = ExtResource( "2_wmypn" )
+
+[node name="PlayerShape" type="MeshInstance3D" parent="Player"]
+mesh = SubResource( "CapsuleMesh_oay6h" )
+surface_material_override/0 = null
+
+[node name="PlayerCollision" type="CollisionShape3D" parent="Player"]
+shape = SubResource( "CapsuleShape3D_pjlnj" )
+
+[node name="PlayerLight" type="SpotLight3D" parent="Player"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+light_color = Color(0.74902, 0.87451, 1, 1)
+light_energy = 2.5
+shadow_enabled = true
+spot_range = 50.0
+
+[node name="PlayerCamera" type="Camera3D" parent="Player"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
+
+[node name="Terrain" type="Node3D" parent="."]
+script = ExtResource( "2_kny2v" )
