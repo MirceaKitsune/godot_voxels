@@ -6,150 +6,160 @@ extends Node3D
 @export var lod_levels = 4
 @export var density = Vector2(64, 256)
 
-var chunk_mins: Vector3i
-var chunk_maxs: Vector3i
-var chunk_active: Vector3
-var chunk_nodes: Dictionary
-var chunk_nodes_body: Dictionary
-var chunk_nodes_body_collisions: Dictionary
-var chunks: Array
-var mc: MarchingCubes
-var view_sphere: Array
-var viewer: CharacterBody3D
-var update_lod: Dictionary
-var update_reset: bool
-var noise: OpenSimplexNoise
+# Chunks object, handles chunk storage mesh drawing and node management
+class _chunks extends Node3D:
+	var mins: Vector3i
+	var maxs: Vector3i
+	var chunks: Array
+	var view_chunk: Vector3
+	var view_sphere: Array
+	var view_sphere_lod: Dictionary
+	var update_lod: Dictionary
+	var update_reset: bool
+
+	var mc: MarchingCubes
+	var parent: Node3D
+	var viewer: CharacterBody3D
+	var noise: OpenSimplexNoise
+	var noise_density: Vector2
+
+	var node: Dictionary
+	var node_body: Dictionary
+	var node_body_collisions: Dictionary
+
+	func _init(p: Node3D, v: CharacterBody3D, n: OpenSimplexNoise, nd: Vector2, dist: int, size: int, lod: int, step: int):
+		var size_half = int(round(size / 2))
+		mins = Vector3i(-size_half, -size_half, -size_half)
+		maxs = Vector3i(size_half, size_half, size_half)
+		view_chunk = Vector3(INF, INF, INF)
+
+		mc = MarchingCubes.new(mins, maxs, step)
+		parent = p
+		viewer = v
+		noise = n
+		noise_density = nd
+
+		# Configure the virtual sphere of possible chunk positions
+		# The list is sorted so points closest to the active chunk are processed first
+		for x in range(-dist, dist + 1, size):
+			for y in range(-dist, dist + 1, size):
+				for z in range(-dist, dist + 1, size):
+					var pos = Vector3(x, y, z)
+					var distance = pos.distance_to(Vector3i(0, 0, 0))
+					if distance <= dist:
+						view_sphere.append(pos)
+						view_sphere_lod[pos] = 1 + floor(distance / (dist / lod))
+		view_sphere.sort_custom(_sort)
+
+	func _sort(a: Vector3, b: Vector3):
+		return a.distance_to(Vector3i(0, 0, 0)) < b.distance_to(Vector3i(0, 0, 0))
+
+	func _points_at(pos: Vector3):
+		var ofs = noise_density[0] if pos.y >= 0 else noise_density[1]
+		var n = noise.get_noise_3dv(pos) + (pos.y / ofs)
+		return min(max(n, 0), 1)
+
+	func _points(pos: Vector3):
+		var p = {}
+		var p_valid = false
+		for x in range(mins.x, maxs.x + 1):
+			for y in range(mins.y, maxs.y + 1):
+				for z in range(mins.z, maxs.z + 1):
+					var vec = Vector3(x, y, z)
+					p[vec] = _points_at(vec + pos)
+					if p[vec] > 0 and p[vec] < 1:
+						p_valid = true
+		return p if p_valid else {}
+
+	func _chunk_create(pos: Vector3):
+		chunks.append(pos)
+		node_body_collisions[pos] = CollisionShape3D.new()
+		node_body[pos] = StaticBody3D.new()
+		node[pos] = MeshInstance3D.new()
+		node[pos].position = pos
+		node_body[pos].call_deferred("add_child", node_body_collisions[pos])
+		node[pos].call_deferred("add_child", node_body[pos])
+		parent.call_deferred("add_child", node[pos])
+
+	func _chunk_destroy(pos: Vector3):
+		chunks.erase(pos)
+		node_body_collisions[pos].queue_free()
+		node_body[pos].queue_free()
+		node[pos].queue_free()
+		node_body_collisions.erase(pos)
+		node_body.erase(pos)
+		node.erase(pos)
+
+	func _chunk_draw(pos: Vector3, points: Dictionary, lod: int):
+		var mesh = mc.get_mesh(points, lod)
+		var mesh_collision = mesh.create_trimesh_shape()
+		node[pos].set_mesh(mesh)
+		node_body_collisions[pos].set_shape(mesh_collision)
+
+	func update_view():
+		var pos = viewer.position
+		var pos_chunk = pos.snapped(maxs - mins)
+		if view_chunk != pos_chunk:
+			view_chunk = pos_chunk
+			update_reset = true
+
+	func update():
+		update_reset = false
+
+		# Remove chunks that are outside the view sphere
+		for pos in chunks.duplicate():
+			if update_reset:
+				break
+			var pos_view = pos - view_chunk
+			if not view_sphere.has(pos_view):
+				_chunk_destroy(pos)
+				update_lod.erase(pos)
+
+		# Create or update chunks that are inside the view sphere
+		# LOD level 0 marks empty chunks that don't need to be spawned
+		for pos_view in view_sphere:
+			if update_reset:
+				break
+			var pos = pos_view + view_chunk
+			if not update_lod.has(pos) or (update_lod[pos] > 0 and update_lod[pos] != view_sphere_lod[pos_view]):
+				var points = _points(pos)
+				if points.size() > 0:
+					if not chunks.has(pos):
+						_chunk_create(pos)
+					_chunk_draw(pos, points, view_sphere_lod[pos_view])
+				update_lod[pos] = view_sphere_lod[pos_view] if points.size() > 0 else 0
+
+var chunks: _chunks
 var update_semaphore: Semaphore
 var update_thread: Thread
 
 func _enter_tree():
-	var size = int(round(chunk_size / 2))
-	chunk_mins = Vector3i(0 - size, 0 - size, 0 - size)
-	chunk_maxs = Vector3i(0 + size, 0 + size, 0 + size)
-	chunk_active = Vector3(0, 0, 0)
-	chunk_nodes = {}
-	chunk_nodes_body = {}
-	chunk_nodes_body_collisions = {}
-	chunks = []
-	mc = MarchingCubes.new(chunk_mins, chunk_maxs, steps)
-	view_sphere = []
-	viewer = get_parent().get_node("Player")
-	update_lod = {}
-	update_reset = false
-
-	# Configure the virtual sphere of possible chunk positions
-	for x in range(-distance, distance + 1, chunk_size):
-		for y in range(-distance, distance + 1, chunk_size):
-			for z in range(-distance, distance + 1, chunk_size):
-				var pos = Vector3(x, y, z)
-				if pos.distance_to(Vector3i(0, 0, 0)) <= distance:
-					view_sphere.append(pos)
-	view_sphere.sort_custom(_sort_closest)
-	chunk_active = Vector3(INF, INF, INF)
-
-	noise = OpenSimplexNoise.new()
+	var player = get_parent().get_node("Player")
+	var noise = OpenSimplexNoise.new()
 	noise.seed = randi()
-	noise.octaves = 16
-	noise.lacunarity = 4
+	noise.octaves = 3
+	noise.lacunarity = 5
 	noise.period = 256
 	noise.persistence = 0.5
 
+	chunks = _chunks.new(self, player, noise, density, distance, chunk_size, lod_levels, steps)
 	update_semaphore = Semaphore.new()
 	update_thread = Thread.new()
-	update_thread.start(Callable(self, "_threads_update"))
+	update_thread.start(Callable(self, "_process_update"))
 
 func _exit_tree():
+	update_semaphore.post()
 	update_thread.wait_to_finish()
 
-func _process(delta):
+func _process(_delta):
 	# Updates are only preformed when the player moves into a new chunk
 	# Other chunks are evaluated based on the distance between them and the active chunk
 	# This improves performance while providing a good level of accuracy
-	var pos = viewer.position
-	var pos_chunk = pos.snapped(Vector3i(chunk_size, chunk_size, chunk_size))
-	if chunk_active != pos_chunk:
-		chunk_active = pos_chunk
-		update_reset = true
+	chunks.update_view()
+	if chunks.update_reset:
 		update_semaphore.post()
 
-# Sort chunk positions so entries closest to the active chunk come first
-func _sort_closest(a: Vector3, b: Vector3):
-	return a.distance_squared_to(chunk_active) < b.distance_squared_to(chunk_active) 
-
-# Thread that scans for changes and updates chunk objects
-func _threads_update():
+func _process_update():
 	while true:
 		update_semaphore.wait()
-		update_reset = false
-
-		# Remove nodes for chunks that are out of range
-		for pos in chunks.duplicate():
-			if update_reset:
-				break
-			if pos.distance_to(chunk_active) >= distance:
-				_chunk_destroy(pos)
-				update_lod.erase(pos)
-
-		# Create nodes for chunks that are within range or change the LOD of existing chunks
-		# LOD level 0 marks empty chunks that don't need to be spawned
-		for pos_point in view_sphere:
-			if update_reset:
-				break
-			var pos = pos_point + chunk_active
-			var dist = pos.distance_to(chunk_active)
-			var lod = 1 + floor(dist / (distance / lod_levels))
-			if not update_lod.has(pos) or (update_lod[pos] > 0 and update_lod[pos] != lod):
-				var points = _get_points(pos)
-				if points:
-					if not chunks.has(pos):
-						_chunk_create(pos)
-					var mesh = mc.get_mesh(points, lod)
-					var mesh_collision = mesh.create_trimesh_shape()
-					chunk_nodes[pos].set_mesh(mesh)
-					chunk_nodes_body_collisions[pos].set_shape(mesh_collision)
-				update_lod[pos] = lod if points else 0
-
-# Create a new chunk and set properties that don't need to be updated
-func _chunk_create(pos: Vector3):
-	chunks.append(pos)
-
-	chunk_nodes[pos] = MeshInstance3D.new()
-	chunk_nodes[pos].position = pos
-	chunk_nodes_body[pos] = StaticBody3D.new()
-	chunk_nodes_body_collisions[pos] = CollisionShape3D.new()
-
-	chunk_nodes_body[pos].call_deferred("add_child", chunk_nodes_body_collisions[pos])
-	chunk_nodes[pos].call_deferred("add_child", chunk_nodes_body[pos])
-	call_deferred("add_child", chunk_nodes[pos])
-
-# Destroy a chunk and remove its data from memory
-func _chunk_destroy(pos: Vector3):
-	chunks.erase(pos)
-
-	chunk_nodes_body_collisions[pos].queue_free()
-	chunk_nodes_body[pos].queue_free()
-	chunk_nodes[pos].queue_free()
-
-	chunk_nodes.erase(pos)
-	chunk_nodes_body.erase(pos)
-	chunk_nodes_body_collisions.erase(pos)
-
-# Noise for the point density
-func _get_points_noise(pos: Vector3):
-	var ofs = density[0] if pos.y >= 0 else density[1]
-	var n = noise.get_noise_3dv(pos) + (pos.y / ofs)
-	return min(max(n, -1), 1)
-
-# Get the point density of each unit within this cubic area
-func _get_points(pos: Vector3):
-	var p = {}
-	var p_valid = false
-	for x in range(chunk_mins.x, chunk_maxs.x + 3):
-		for y in range(chunk_mins.y, chunk_maxs.y + 3):
-			for z in range(chunk_mins.z, chunk_maxs.z + 3):
-				var vec = Vector3(x, y, z)
-				var vec_noise = Vector3(pos.x + x, pos.y + y, pos.z + z)
-				p[vec] = _get_points_noise(vec_noise)
-				if p[vec] > 0 and p[vec] < 1:
-					p_valid = true
-	return p if p_valid else null
+		chunks.update()
