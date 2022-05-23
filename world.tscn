@@ -1,29 +1,81 @@
-[gd_scene load_steps=9 format=3 uid="uid://2bgr3o35dc77"]
+[gd_scene load_steps=12 format=3 uid="uid://2bgr3o35dc77"]
 
+[ext_resource type="Script" path="res://scripts/daytime.gd" id="1_sd5hu"]
 [ext_resource type="Script" path="res://scripts/terrain.gd" id="2_kny2v"]
 [ext_resource type="Script" path="res://scripts/player.gd" id="2_wmypn"]
 
-[sub_resource type="PhysicalSkyMaterial" id="PhysicalSkyMaterial_oh8gr"]
+[sub_resource type="PhysicalSkyMaterial" id="PhysicalSkyMaterial_n6vu6"]
+rayleigh_color = Color(0.247059, 0.498039, 0.74902, 1)
+mie_color = Color(0.74902, 0.87451, 1, 1)
+ground_color = Color(0.498039, 0.435294, 0.372549, 1)
 
-[sub_resource type="Sky" id="Sky_t7xjn"]
-sky_material = SubResource( "PhysicalSkyMaterial_oh8gr" )
+[sub_resource type="Sky" id="Sky_tey3t"]
+sky_material = SubResource( "PhysicalSkyMaterial_n6vu6" )
+process_mode = 3
 
-[sub_resource type="Environment" id="Environment_jbpuh"]
+[sub_resource type="Environment" id="Environment_m507g"]
 background_mode = 2
-sky = SubResource( "Sky_t7xjn" )
+sky = SubResource( "Sky_tey3t" )
 tonemap_mode = 2
 auto_exposure_enabled = true
+auto_exposure_scale = 0.5
+auto_exposure_min_luma = 0.25
+auto_exposure_max_luma = 1.0
 ssao_enabled = true
 ssil_enabled = true
 sdfgi_use_occlusion = true
-sdfgi_read_sky_light = true
 glow_enabled = true
-fog_enabled = true
-fog_light_color = Color(0.501961, 0.6, 0.701961, 1)
+fog_light_color = Color(0.247059, 0.372549, 0.498039, 1)
 volumetric_fog_enabled = true
-volumetric_fog_density = 0.025
+volumetric_fog_density = 0.01
 
-[sub_resource type="CameraEffects" id="CameraEffects_tptsu"]
+[sub_resource type="CameraEffects" id="CameraEffects_77pfq"]
+
+[sub_resource type="Animation" id="Animation_ul771"]
+resource_name = "daytime"
+loop_mode = 1
+step = 0.025
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:rotation")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.25, 0.5, 0.75, 1),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1),
+"update": 0,
+"values": [Vector3(-1.0472, 0, 0), Vector3(0, 1.5708, 0), Vector3(-1.0472, 3.14159, 0), Vector3(0, 4.71239, 0), Vector3(-1.0472, 6.28319, 0)]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath(".:light_energy")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0, 0.225, 0.25, 0.325, 0.5, 0.675, 0.75, 0.775, 1),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1, 1, 1, 1, 1),
+"update": 0,
+"values": [0.01, 0.01, 0.0, 5.0, 10.0, 5.0, 0.0, 0.01, 0.01]
+}
+tracks/2/type = "value"
+tracks/2/imported = false
+tracks/2/enabled = true
+tracks/2/path = NodePath(".:light_color")
+tracks/2/interp = 1
+tracks/2/loop_wrap = true
+tracks/2/keys = {
+"times": PackedFloat32Array(0, 0.225, 0.25, 0.275, 0.3, 0.325, 0.675, 0.7, 0.725, 0.75, 0.775, 1),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
+"update": 0,
+"values": [Color(1, 1, 1, 1), Color(1, 1, 1, 1), Color(1, 0.247059, 0, 1), Color(1, 0.623529, 0.247059, 1), Color(1, 0.937255, 0.87451, 1), Color(1, 1, 1, 1), Color(1, 1, 1, 1), Color(1, 0.937255, 0.87451, 1), Color(1, 0.623529, 0.247059, 1), Color(1, 0.247059, 0, 1), Color(1, 1, 1, 1), Color(1, 1, 1, 1)]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_auf8j"]
+_data = {
+"daytime": SubResource( "Animation_ul771" )
+}
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_oay6h"]
 
@@ -32,14 +84,19 @@ volumetric_fog_density = 0.025
 [node name="Node3D" type="Node3D"]
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
-environment = SubResource( "Environment_jbpuh" )
-camera_effects = SubResource( "CameraEffects_tptsu" )
+environment = SubResource( "Environment_m507g" )
+camera_effects = SubResource( "CameraEffects_77pfq" )
 
-[node name="DirectionalLight" type="DirectionalLight3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 0.996195, 0.0871558, 0, -0.0871558, 0.996195, 0, 5, 0)
-light_color = Color(1, 0.87451, 0.74902, 1)
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="WorldEnvironment"]
+transform = Transform3D(1, 0, 0, 0, 0.499998, 0.866026, 0, -0.866026, 0.499998, 0, 10, 0)
+light_energy = 0.01
 shadow_enabled = true
-directional_shadow_mode = 0
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="WorldEnvironment/DirectionalLight3D"]
+libraries = {
+"": SubResource( "AnimationLibrary_auf8j" )
+}
+script = ExtResource( "1_sd5hu" )
 
 [node name="Player" type="CharacterBody3D" parent="."]
 floor_max_angle = 1.0472
@@ -48,7 +105,6 @@ script = ExtResource( "2_wmypn" )
 
 [node name="PlayerShape" type="MeshInstance3D" parent="Player"]
 mesh = SubResource( "CapsuleMesh_oay6h" )
-surface_material_override/0 = null
 
 [node name="PlayerCollision" type="CollisionShape3D" parent="Player"]
 shape = SubResource( "CapsuleShape3D_pjlnj" )

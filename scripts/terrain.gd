@@ -20,14 +20,14 @@ class _chunks extends Node3D:
 	var mc: MarchingCubes
 	var parent: Node3D
 	var viewer: CharacterBody3D
-	var noise: OpenSimplexNoise
+	var noise: FastNoiseLite
 	var noise_density: Vector2
 
 	var node: Dictionary
 	var node_body: Dictionary
 	var node_body_collisions: Dictionary
 
-	func _init(p: Node3D, v: CharacterBody3D, n: OpenSimplexNoise, nd: Vector2, dist: int, size: int, lod: int, step: int):
+	func _init(p: Node3D, v: CharacterBody3D, n: FastNoiseLite, nd: Vector2, dist: int, size: int, lod: int, step: int):
 		var size_half = int(round(size / 2))
 		mins = Vector3i(-size_half, -size_half, -size_half)
 		maxs = Vector3i(size_half, size_half, size_half)
@@ -135,12 +135,10 @@ var update_thread: Thread
 
 func _enter_tree():
 	var player = get_parent().get_node("Player")
-	var noise = OpenSimplexNoise.new()
+	var noise = FastNoiseLite.new()
+	noise.noise_type = noise.TYPE_PERLIN
 	noise.seed = randi()
-	noise.octaves = 3
-	noise.lacunarity = 5
-	noise.period = 256
-	noise.persistence = 0.5
+	noise.frequency = 0.01
 
 	chunks = _chunks.new(self, player, noise, density, distance, chunk_size, lod_levels, steps)
 	update_semaphore = Semaphore.new()

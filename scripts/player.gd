@@ -28,33 +28,33 @@ func _physics_process(delta):
 	# Handle horizontal (X and Z) movement
 	if not(Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_UP) or Input.is_key_pressed(KEY_DOWN) or Input.is_key_pressed(KEY_LEFT) or Input.is_key_pressed(KEY_RIGHT)):
 		var Movement = Decelaration if is_on_floor() else Air_Decelaration
-		motion_velocity.x /= 1 + Movement
-		motion_velocity.z /= 1 + Movement
+		velocity.x /= 1 + Movement
+		velocity.z /= 1 + Movement
 	else:
 		var Movement = Accelaration if is_on_floor() else Air_Accelaration
 		if Input.is_key_pressed(KEY_UP) or Input.is_key_pressed(KEY_W):
-			motion_velocity.x -= global_transform.basis.z.x * Movement
-			motion_velocity.z -= global_transform.basis.z.z * Movement
+			velocity.x -= global_transform.basis.z.x * Movement
+			velocity.z -= global_transform.basis.z.z * Movement
 		if Input.is_key_pressed(KEY_DOWN) or Input.is_key_pressed(KEY_S):
-			motion_velocity.x += global_transform.basis.z.x * Movement
-			motion_velocity.z += global_transform.basis.z.z * Movement
+			velocity.x += global_transform.basis.z.x * Movement
+			velocity.z += global_transform.basis.z.z * Movement
 		if Input.is_key_pressed(KEY_LEFT) or Input.is_key_pressed(KEY_A):
-			motion_velocity.x -= global_transform.basis.x.x * Movement
-			motion_velocity.z -= global_transform.basis.x.z * Movement
+			velocity.x -= global_transform.basis.x.x * Movement
+			velocity.z -= global_transform.basis.x.z * Movement
 		if Input.is_key_pressed(KEY_RIGHT) or Input.is_key_pressed(KEY_D):
-			motion_velocity.x += global_transform.basis.x.x * Movement
-			motion_velocity.z += global_transform.basis.x.z * Movement
+			velocity.x += global_transform.basis.x.x * Movement
+			velocity.z += global_transform.basis.x.z * Movement
 
 	# Handle vertical (Y) movement
 	if Input.is_action_just_pressed("ui_accept") and (is_on_floor() or Jump_Jetpack):
-		motion_velocity.y += Jump_Speed
-	motion_velocity.y -= Gravity
+		velocity.y += Jump_Speed
+	velocity.y -= Gravity
 
 	# Apply movement
 	var MovementCap = Cap if is_on_floor() else Air_Cap
-	motion_velocity.x = min(MovementCap, max(-MovementCap, motion_velocity.x))
-	motion_velocity.y = min(MovementCap, max(-MovementCap, motion_velocity.y))
-	motion_velocity.z = min(MovementCap, max(-MovementCap, motion_velocity.z))
+	velocity.x = min(MovementCap, max(-MovementCap, velocity.x))
+	velocity.y = min(MovementCap, max(-MovementCap, velocity.y))
+	velocity.z = min(MovementCap, max(-MovementCap, velocity.z))
 	move_and_slide()
 
 func _input(event):
