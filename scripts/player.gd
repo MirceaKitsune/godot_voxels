@@ -61,6 +61,6 @@ func _input(event):
 	if event is InputEventMouseMotion:
 		var camera = get_node("PlayerCamera")
 		camera.rotate_x(-Sensitivity_Y * event.relative.y)
-		camera.rotation.x = min(deg2rad(Maximum_Y_Look), max(deg2rad(Minimum_Y_Look), camera.rotation.x))
+		camera.rotation.x = min(deg_to_rad(Maximum_Y_Look), max(deg_to_rad(Minimum_Y_Look), camera.rotation.x))
 
 		rotate_y(-Sensitivity_X * event.relative.x)
